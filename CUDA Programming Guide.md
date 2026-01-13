@@ -39,22 +39,50 @@ Above diagram clearly depicts the conceptual model of a hardware supporting CUDA
     - functional units that perform computations
       - CUDA cores, Tensor cores, Tensor memory, etc.
 
-**GPU memory**
+**GPU memory (containing section 2.2.3)**
 
-Each device has its own memory
-
-- CPU and GPU use a single unified virtual memory space
-  - distinct address (between CPU and GPU)
+CPU and GPU use a single unified virtual memory space. (Distinct address between CPU and GPU)
 
 - global/device memory: GPU DRAM, accessible to all SMs
+  - persistent until allocation is **freed** or throughout the lifetime of the application
+  - possible data races between threads
+  - from/to host
 - unified data cache: shared memory
+  - persistent throughout kernel execution
+  - possible data races between threads
   - finite size **per thread block** allocation
   - accessible to threads in a thread block or a thread block cluster
 - unified data cache: L1 cache
 - register file
+  - thread local scope
   - finite size **per thread** allocation
-- constant cache
-  - stores constant value over a lifetime of a kernel
+  - managed by compiler
+  - not "addressable"
+- local memory
+  - thread local scope
+  - managed by compiler
+  - use global memory space
+  - organized and prefer coalesced access
+    - consecutive 32-bit words accessed by consecutive thread IDs
+  - **allocated** when
+    - variable-length arrays
+    - large structures
+    - register spilling (too much variables)
+- constant memory
+  - grid scope, persistent throughout the lifetime of the application (CUDA context)
+  - read-only to kernels
+  - must be declared globally with `__constant__`
+  - use global memory space (typically 64KB)
+  - has a distinct object per device 
+  - has a dedicate cache
+- Texture and Surface memory (uncommon)
+- Distributed Shared Memory (>= sm90)
+  - read, write and perform atomics across a cluster
+  - only for communication
+    - per thread block configuration (size, dynamic/static)
+  - size = thread blocks $\times$ shared memory per block
+  - access when all thread blocks exists (before any thread block exits)
+    - ensure this with `cluster.sync()` (like `__syncthreads()`)
 
 **when executing a CUDA application on such systems**
 
@@ -143,4 +171,52 @@ Each thread can therefore locate itself and determine responsible data and opera
   - can be JIT compiled for higher or equal compute capability
     - utilize new compiler optimization
     - enable forward compatibility without rebuilding
+
+## 2.1 Intro to CUDA C++
+
+### How is CUDA runtime initialized?
+
+这里需要日后总结，实践经验缺乏
+
+## 2.2 Writing CUDA SIMT Kernels
+
+### How to maximize global memory performance?
+
+**Access Pattern: aligned 32-byte transaction (256 bits)**
+
+- When a thread need 4 bytes, the warp actually requests a aligned 32-byte transaction
+
+**Coalesced Access**
+
+- If multiple threads **in a warp** use data in a single transaction, the warp would coalesces memory accesses, resulting in less requests.
+- Most straight forward: Consecutive threads access Consecutive data
+  - less common
+- More General: higher $\frac{\text{bytes used}}{\text{bytes transferred}}$
+  -  For example, memory access is permuted but covers all 32 bytes
+
+**辅助实验**
+
+- 证明任取一个4字节，都会取出32字节
+- 证明在warp内的乱序访问只要用上了全部32字节，仍等效于连续线程访问连续内存
+- 证明跨warp的访问不会被合并
+
+
+
+### How to maximize shared memory performance?
+
+**Access Pattern**
+
+- 32 shared memory banks
+  - A bank: 32-bit bandwidth per clock cycle
+
+**Avoiding bank conflicts**
+
+- bank conflicts
+  - different threads **in a warp** access different data in a same bank, resulting in serialization of access 
+- read broadcasting: multiple threads **in a warp** access the word at one SMEM address
+- "random" write: when multiple threads write to a same word, only one of threads **in a warp** write to the address
+
+## 2.5 NVCC: The NVIDIA CUDA Compiler
+
+**source file types**
 

@@ -1,7 +1,5 @@
 A good technical note should be a "trigger" for a concept, not a transcript of the manual.
 
-# 1. Introduction to CUDA
-
 ## 1.2 Programming model
 
 ### Describe components of  CUDA programming model  (in a programmer's view)
@@ -219,4 +217,10 @@ Each thread can therefore locate itself and determine responsible data and opera
 ## 2.5 NVCC: The NVIDIA CUDA Compiler
 
 **source file types**
+
+- Host-only: `.c`, `.cpp`, `.cc`, `.cxx`
+- Mixed (Need special configuration in editors): `.h`, `.hpp`, `.hh`, `.hxx`
+- Mixed: `.cu`, `.cuh`
+
+### Describe the NVCC Compilation Workflow
 
